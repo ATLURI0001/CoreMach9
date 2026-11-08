@@ -1,15 +1,21 @@
 #include <drogon/drogon.h>
 #include <thread>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <charconv>
+#include <filesystem>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/document.h>
 
 int main() {
-    // In the config file we have disabled compression and logging
-    drogon::app().loadConfigFile("../config.json");
+    // Resolve configuration file relative to current directory or parent directory
+    if (std::filesystem::exists("config.json")) {
+        drogon::app().loadConfigFile("config.json");
+    } else if (std::filesystem::exists("../config.json")) {
+        drogon::app().loadConfigFile("../config.json");
+    }
 
     // GET /simple route
     drogon::app().registerHandler("/simple",
@@ -22,7 +28,7 @@ int main() {
                 writer.StartObject();
 
                 writer.Key("message");
-                writer.String("hi");
+                writer.String("hi", 2);
 
                 writer.EndObject();
 
@@ -48,12 +54,10 @@ int main() {
             const std::string& id,
             const std::string& name) {
 
-                // Validation
+                // Validation using zero-allocation, non-throwing std::from_chars
                 int idNum = 0;
-                try {
-                    idNum = std::stoi(id);
-                }
-                catch (...) {
+                auto [ptr, ec] = std::from_chars(id.data(), id.data() + id.size(), idNum);
+                if (ec != std::errc() || ptr != id.data() + id.size()) {
                     auto resp = drogon::HttpResponse::newHttpResponse();
                     resp->setBody(R"({"error":"id must be a number"})");
                     resp->setStatusCode(drogon::k400BadRequest);
@@ -82,7 +86,7 @@ int main() {
                     std::vector<std::string> keys;
                     for (int i = 1; i <= 10; ++i) keys.push_back("foo" + std::to_string(i));
                     return keys;
-                    }();
+                }();
 
                 // Parse the raw string directly with RapidJSON
                 if (!doc.Parse(rawBody.data(), rawBody.size()).HasParseError() && doc.IsObject()) {
@@ -109,19 +113,19 @@ int main() {
                 writer.StartObject();
 
                 writer.Key("id");
-                writer.String(id.c_str());
+                writer.String(id.data(), static_cast<rapidjson::SizeType>(id.size()));
 
                 writer.Key("name");
-                writer.String(name.c_str());
+                writer.String(name.data(), static_cast<rapidjson::SizeType>(name.size()));
 
                 writer.Key("value1");
-                writer.String(v1.c_str());
+                writer.String(v1.data(), static_cast<rapidjson::SizeType>(v1.size()));
 
                 writer.Key("value2");
-                writer.String(v2.c_str());
+                writer.String(v2.data(), static_cast<rapidjson::SizeType>(v2.size()));
 
                 writer.Key("total_foo");
-                writer.String(totalFoo.c_str());
+                writer.String(totalFoo.data(), static_cast<rapidjson::SizeType>(totalFoo.size()));
 
 
                 writer.Key("history");
@@ -138,16 +142,20 @@ int main() {
                     writer.Int(idNum + i);
 
                     writer.Key("timestamp");
-                    writer.String(timestamp.c_str());
+                    writer.String(timestamp.data(), static_cast<rapidjson::SizeType>(timestamp.size()));
 
                     writer.Key("action");
-                    writer.String(action.c_str());
+                    writer.String(action.data(), static_cast<rapidjson::SizeType>(action.size()));
 
                     writer.Key("metadata");
-                    writer.String(metadata.c_str());
+                    writer.String(metadata.data(), static_cast<rapidjson::SizeType>(metadata.size()));
 
                     writer.Key("status");
-                    writer.String((i % 2 == 0) ? "success" : "pending");
+                    if (i % 2 == 0) {
+                        writer.String("success", 7);
+                    } else {
+                        writer.String("pending", 7);
+                    }
                     writer.EndObject();
                 }
                 writer.EndArray();
