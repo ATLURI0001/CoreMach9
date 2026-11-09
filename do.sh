@@ -6,7 +6,7 @@ CMD="${1:-}"
 
 # If no command is given, show usage
 if [ -z "$CMD" ]; then
-  echo "Usage: $0 [cmake | build | run]"
+  echo "Usage: $0 [cmake | build | run | test]"
   exit 1
 fi
 
@@ -29,8 +29,18 @@ case "$CMD" in
     ./"$BINARY_NAME"
     cd ..
     ;;
+  test|-test)
+    if [ -d "build" ]; then
+      cd build
+      ctest --output-on-failure
+      cd ..
+    else
+      echo "Build directory not found. Run './do.sh cmake' first."
+      exit 1
+    fi
+    ;;
   *)
-    echo "Usage: $0 [cmake | build | run]"
+    echo "Usage: $0 [cmake | build | run | test]"
     exit 1
     ;;
 esac
