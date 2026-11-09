@@ -5,6 +5,8 @@
 #include <vector>
 #include <charconv>
 #include <filesystem>
+#include <cstring>
+#include <cstdlib>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/document.h>
@@ -23,6 +25,7 @@ int main() {
             std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
 
                 rapidjson::StringBuffer sb;
+                sb.Reserve(64);
                 rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
                 writer.StartObject();
@@ -108,6 +111,7 @@ int main() {
 
                 // Serialization with RapidJSON
                 rapidjson::StringBuffer sb;
+                sb.Reserve(16384);
                 rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
                 writer.StartObject();
@@ -170,17 +174,33 @@ int main() {
         { drogon::Patch });
 
 
-    // Start the server
-    drogon::app().addListener("0.0.0.0", 5555);
+    // Configurable port via PORT environment variable (fallback: 5555)
+    uint16_t port = 5555;
+    if (const char* portEnv = std::getenv("PORT")) {
+        int p = 0;
+        auto [ptr, ec] = std::from_chars(portEnv, portEnv + std::strlen(portEnv), p);
+        if (ec == std::errc() && p > 0 && p <= 65535) {
+            port = static_cast<uint16_t>(p);
+        }
+    }
 
-    // Automatic thread scaling
+    // Automatic or environment-configured thread scaling via THREADS
     unsigned int cores = std::thread::hardware_concurrency();
+    if (const char* threadsEnv = std::getenv("THREADS")) {
+        int t = 0;
+        auto [ptr, ec] = std::from_chars(threadsEnv, threadsEnv + std::strlen(threadsEnv), t);
+        if (ec == std::errc() && t > 0 && t <= 256) {
+            cores = static_cast<unsigned int>(t);
+        }
+    }
     if (cores == 0) cores = 1;
 
+    // Start the server
+    drogon::app().addListener("0.0.0.0", port);
     drogon::app().setThreadNum(cores);
 
     LOG_INFO << "Server starting with " << cores << " threads";
-    LOG_INFO << "Server running on http://127.0.0.1:5555";
+    LOG_INFO << "Server running on http://0.0.0.0:" << port;
 
 
     drogon::app().run();
