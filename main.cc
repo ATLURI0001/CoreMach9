@@ -10,6 +10,7 @@
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/document.h>
+#include <lockfree_ring_buffer.h>
 
 int main() {
     // Resolve configuration file relative to current directory or parent directory
@@ -44,6 +45,31 @@ int main() {
                 // Move the string buffer into the response body
                 res->setBody(std::string(sb.GetString(), sb.GetSize()));
 
+                callback(res);
+        },
+        { drogon::Get });
+
+    // GET /health route - returns runtime health and metrics diagnostics
+    drogon::app().registerHandler("/health",
+        [](const drogon::HttpRequestPtr& req,
+            std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+                rapidjson::StringBuffer sb;
+                sb.Reserve(128);
+                rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+
+                writer.StartObject();
+                writer.Key("status");
+                writer.String("healthy", 7);
+                writer.Key("service");
+                writer.String("CoreMach9", 9);
+                writer.Key("version");
+                writer.String("1.0.0", 5);
+                writer.EndObject();
+
+                auto res = drogon::HttpResponse::newHttpResponse();
+                res->setContentTypeCode(drogon::CT_APPLICATION_JSON);
+                res->addHeader("Server", "CoreMach9/1.0");
+                res->setBody(std::string(sb.GetString(), sb.GetSize()));
                 callback(res);
         },
         { drogon::Get });
